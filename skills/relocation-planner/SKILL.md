@@ -1,6 +1,6 @@
 ---
 name: relocation-planner
-version: 1.0.0
+version: 1.1.0
 description: Compare retirement relocation / state-tax arbitrage by orchestrating the public planfi MCP — how much a move (e.g. CA→TX/FL) saves in state income tax, property tax, estate tax, and cost of living, and whether it's worth it.
 ---
 
@@ -49,6 +49,14 @@ tools run cold — but the cleanest path is to mint a **`plan_id`** first and ch
   - Recommended (each defaults server-side if omitted, reported in `assumed_defaults[]`): `annual_retirement_income` (pension / IRA / 401k withdrawals / RMD / interest — the state-taxable ordinary income; default 0), `social_security_income` (default 0), `annual_capital_gains` (annual realized long-term gains; default 0), `annual_spend` (living spend at cost-of-living index 100 — drives the COL delta; default 0), `real_estate_value` (home value for property-tax comparison; default 0), `current_age` (default 50), `life_expectancy` (default 90 — current_age→life_expectancy sets years in retirement), `filing_status` (`single` | `married_joint`, default `single`).
   - Other optional fields: `liquid_assets`, `mortgage_principal` (informational; default 0), `estimated_growth_rate` (real rate, default 0.05), `tax_year` (default 2026), `plan_id` (+ inline `overrides`) to derive figures from a saved plan.
   - Returns: `annual_after_tax_delta` and `lifetime_after_tax_delta` (**positive = the move saves**), `estate_tax_delta`, `total_lifetime_advantage`, a `headline_recommendation` + `recommendation_reason`, and `from_breakdown` / `to_breakdown` line items (state income tax, property tax, COL).
+  - State income tax is computed by the shared engine (`state-tax.ts`): progressive bracket tables for all 50 states + DC, with first-class single and married-filing-jointly (MFJ) brackets — so `filing_status` branches every state (no-income-tax states report $0). Brackets are server-side; there is no user-supplied flat-rate field.
+
+> **Shared bracket engine — `n/a (shared engine: state-tax.ts)`.** The full 50-state + DC
+> single/MFJ progressive bracket tables (with per-state surtaxes) live in one shared engine module
+> (`state-tax.ts`), the same one the broader **`tax-optimizer`** skill uses — no CA/NY/MA-only
+> special-casing, no per-tool flat-rate fallback. For Roth-conversion rooms, gain-harvesting
+> headroom, or multi-year tax timing alongside the move, use the **`tax-optimizer`** skill (it wraps
+> the same `analyze_relocation` tool plus the full tax toolset).
 
 > **Feed it into the forecast (not just a comparison):** `generate_financial_plan` now accepts a `relocation` object directly as a plan input — modeled as retire-and-relocate, the annual state-tax + cost-of-living savings reduce the portfolio-funded spend from the move age, so the move shows up in net worth, FIRE %, and Monte-Carlo backtesting. Use `analyze_relocation` for the headline from→to delta; pass `relocation` into the plan to see its effect on the whole household forecast.
 
