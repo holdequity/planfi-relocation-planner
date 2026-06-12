@@ -12,8 +12,8 @@
     {
       "name": "relocation-planner",
       "source": "./skills/relocation-planner",
-      "description": "Compare retirement relocation / state-tax arbitrage by orchestrating the public planfi MCP — how much a move (e.g. CA→TX/FL) saves in state income tax (full 50-state + DC progressive single/MFJ brackets), property tax, estate tax, and cost of living, and whether it's worth it.",
-      "version": "1.1.0",
+      "description": "Compare retirement relocation / state-tax arbitrage by orchestrating the public planfi MCP — how much a move (e.g. CA→TX/FL) saves in state income tax (full 50-state + DC progressive single/MFJ brackets), property tax, estate tax, and cost of living — and model the transition year you actually move in: part-year-resident day-count apportionment, source-based wage/equity/gains sourcing, the resident-state credit for taxes paid to the other state, reciprocity agreements, and the 183-day/domicile statutory-residency test. Ask Claude things like 'I moved from CA to TX in July, how do I file two state returns?', 'my RSUs vested after I moved from NY to CA — which state taxes them and do I get a credit?', or 'does PA–NJ reciprocity mean I only owe my home state?'.",
+      "version": "1.2.0",
       "license": "MIT",
       "author": {
         "name": "holdequity",

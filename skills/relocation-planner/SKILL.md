@@ -1,7 +1,7 @@
 ---
 name: relocation-planner
-version: 1.1.0
-description: Compare retirement relocation / state-tax arbitrage by orchestrating the public planfi MCP — how much a move (e.g. CA→TX/FL) saves in state income tax, property tax, estate tax, and cost of living, and whether it's worth it.
+version: 1.2.0
+description: Compare retirement relocation / state-tax arbitrage by orchestrating the public planfi MCP — how much a move (e.g. CA→TX/FL) saves in state income tax, property tax, estate tax, and cost of living — plus model the messy transition year you actually move in (part-year-resident apportionment, source-based wage/equity sourcing, the resident-state credit for taxes paid to the other state, reciprocity, and the 183-day residency test).
 ---
 
 # relocation-planner
@@ -14,7 +14,7 @@ read-only (it never changes the user's data). The server is the source of truth.
 ## Step 0 — Make sure the planfi tools are connected
 
 This skill uses these tools (may be namespaced, e.g. `mcp__planfi__generate_financial_plan`):
-`analyze_relocation`, plus optional `generate_financial_plan` (to mint a `plan_id` for chaining + a `share_url`).
+`analyze_relocation`, `analyze_multi_state_part_year_tax` (the transition-year / part-year split), plus optional `generate_financial_plan` (to mint a `plan_id` for chaining + a `share_url`).
 Use whichever name your environment exposes (bare or `mcp__planfi__`-prefixed); below they are written bare.
 
 If they're NOT available, tell the user to connect the MCP, then continue:
@@ -59,6 +59,33 @@ tools run cold — but the cleanest path is to mint a **`plan_id`** first and ch
 > the same `analyze_relocation` tool plus the full tax toolset).
 
 > **Feed it into the forecast (not just a comparison):** `generate_financial_plan` now accepts a `relocation` object directly as a plan input — modeled as retire-and-relocate, the annual state-tax + cost-of-living savings reduce the portfolio-funded spend from the move age, so the move shows up in net worth, FIRE %, and Monte-Carlo backtesting. Use `analyze_relocation` for the headline from→to delta; pass `relocation` into the plan to see its effect on the whole household forecast.
+
+### intent → analyze_multi_state_part_year_tax
+
+**"I moved from CA to TX mid-year, how do I file two state returns?" / "part-year resident tax" / "how do I split my income between two states the year I moved?" / "my RSUs vested after I moved states — which state taxes them?" / "do I get credit for taxes paid to my old state?" / "183-day residency test" / "am I a statutory resident?" / "reciprocity between PA and NJ" / "I'm a remote worker taxed in two states this year"**
+
+> **Always CALL `analyze_multi_state_part_year_tax` for these — do not answer from general knowledge / quote rules of thumb from memory. When the user gives the move date and income, run it and lead with its real output.** `analyze_relocation` deliberately models a *full* year in each state and excludes the messy *transition* year; this tool IS that transition year — day-count apportionment, source-based sourcing of wages/equity/gains, the resident-state credit for taxes paid to the other state, reciprocity, and the 183-day/domicile statutory-residency test. Whenever the user is describing the *year of the move itself* (two part-year returns, income straddling the line, equity vesting across the move, claiming the other-state credit), this is the tool — never hand-compute the apportionment or the credit.
+
+- **REQUIRED:** `old_state`, `new_state` (2-letter codes), `days_in_old_state`, `days_in_new_state` (residency days — these split the year and have no server default; the tool needs the move date).
+- **Server-defaulted and reported in `assumed_defaults[]` if omitted:** `filing_status` (`single` | `married_joint`, default `single`), `wages` (default 0), `total_workdays` (default 260), `equity_vest_value` / `capital_gains` / `deferred_comp` / `other_ordinary_income` (default 0), `capital_gains_realized_while_old_resident` (default false → new-resident sourcing), `deferred_comp_source_state` (`old` | `new`, default `old`), `reciprocity` (default false), `domicile_in_old_state` (default false), `tax_year` (default 2026).
+- **Source-based sourcing inputs (optional; fall back to a residency-day split when omitted):** `wages_workdays_in_old_state` (workdays in the old state — sources wages to where work was performed), `equity_workdays_old_state_grant_to_vest` + `equity_total_workdays_grant_to_vest` (allocate an RSU grant→vest window straddling the move), `old_state_flat_rate` / `new_state_flat_rate` (flat-rate fallback for a tableless state).
+- **Returns:** per-state `residencyStatus` (part-year-resident | nonresident | statutory-resident) with `residencyDeterminations[]` (basis: `183-day` | `domicile` | `reciprocity` | `part-year`), income apportioned to each state, `oldStateTax` / `newStateTax`, `doublyTaxedIncome`, `residentStateCredit` (the credit for taxes paid to the other state, limited to the resident-state tax on the doubly-taxed income), `combinedStateTax`, `naiveFullYearSingleStateTax`, and `netVsNaive` (positive ⇒ the part-year split beats a naive single-state assumption).
+- **Shared engine — `n/a (shared engine: state-tax.ts)`.** Every per-state full-year bracket computation reuses the same 50-state + DC single/MFJ progressive `state-tax.ts` engine that `analyze_relocation` and the **`tax-optimizer`** skill use — no per-tool flat-rate special-casing, no re-declared brackets. For the underlying equity-vest sourcing mechanics (grant→vest workday allocation, ISO/RSU treatment) cross-reference the **`equity-comp-planner`** skill; for Roth-conversion rooms or multi-year tax timing around the move, the **`tax-optimizer`** skill.
+
+Example (FICTIONAL — illustrate the call shape):
+
+```
+analyze_multi_state_part_year_tax({
+  old_state: "NY", new_state: "CA",
+  days_in_old_state: 120, days_in_new_state: 245,
+  wages: 160000, wages_workdays_in_old_state: 120, total_workdays: 240,
+  equity_vest_value: 100000, equity_workdays_old_state_grant_to_vest: 300,
+  equity_total_workdays_grant_to_vest: 600, filing_status: "single"
+})
+// → NY part-year-resident + CA year-end resident; ~80k wages NY-sourced;
+//   residentStateCredit = min(NY tax on the doubly-taxed slice, CA marginal on it);
+//   combinedStateTax + netVsNaive vs assuming a full year all in CA
+```
 
 Example (FICTIONAL — illustrate the call shape):
 
